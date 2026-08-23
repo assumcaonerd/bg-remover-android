@@ -25,20 +25,20 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Setup Gradle
+      - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
 
-      - name: Create Gradle Wrapper if missing
+      - name: Generate Gradle Wrapper
         run: |
-          if [ ! -f ./gradlew ]; then
-            gradle wrapper --gradle-version 8.9
-          fi
+          gradle wrapper --gradle-version 8.9
           chmod +x ./gradlew
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: List APK
+      - name: List APK output
         run: find app/build/outputs -name "*.apk" -ls
 
       - name: Upload APK
