@@ -1,0 +1,94 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build Debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for gradlew
+        run: |
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+          fi
+
+      - name: Setup Gradle Wrapper (if missing)
+        run: |
+          if [ ! -f ./gradlew ]; then
+            gradle wrapper --gradle-version 8.9
+            chmod +x ./gradlew
+          fi
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BG-Remover-Android-Debug
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Attach APK to GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: BG-Remover-Android-Debug
+          path: apk
+
+      - name: Rename APK
+        id: prep
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          mkdir -p release
+          APK=$(ls apk/*.apk | head -n 1)
+          cp "$APK" "release/BG-Remover-${TAG}.apk"
+          ls -lh release/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.prep.outputs.tag }}
+          name: BG Remover Android ${{ steps.prep.outputs.tag }}
+          body: |
+            ## BG Remover Android ${{ steps.prep.outputs.tag }}
+
+            ### Instalação
+            1. Baixe o arquivo `BG-Remover-*.apk`
+            2. No celular, permita instalar apps de fontes desconhecidas (se pedido)
+            3. Abra o APK e instale
+
+            > Build de debug (assinado com chave de debug). Ideal para testes.
+          files: release/*.apk
+          draft: false
+          generate_release_notes: true
